@@ -210,9 +210,12 @@ export function SettingsPage() {
       </Section>
       </motion.div>
 
-      <p className="mt-6 text-center text-xs font-semibold text-slate-400">
-        ⭐ Star Kids · data stored locally in your browser
-      </p>
+      <div className="mt-6 text-center text-xs font-semibold text-slate-400">
+        <p>⭐ Star Kids · data stored locally in your browser</p>
+        <p className="mt-1 text-slate-300">
+          v{__APP_VERSION__} · {__GIT_SHA__} · {__BUILD_DATE__}
+        </p>
+      </div>
     </div>
   );
 }
