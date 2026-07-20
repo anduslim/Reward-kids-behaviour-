@@ -44,11 +44,13 @@ interface Actions {
   addBehaviour: (b: Omit<Behaviour, 'id'>) => void;
   updateBehaviour: (id: string, patch: Partial<Omit<Behaviour, 'id'>>) => void;
   deleteBehaviour: (id: string) => void;
+  moveBehaviour: (id: string, dir: 'up' | 'down') => void;
 
   // rewards
   addReward: (r: Omit<Reward, 'id'>) => void;
   updateReward: (id: string, patch: Partial<Omit<Reward, 'id'>>) => void;
   deleteReward: (id: string) => void;
+  moveReward: (id: string, dir: 'up' | 'down') => void;
 
   // ledger / gamification
   awardStars: (kidId: string, behaviour: Behaviour, stars?: number) => string[];
@@ -95,6 +97,21 @@ function stripUndefined<T extends object>(obj: T): Partial<T> {
   return Object.fromEntries(
     Object.entries(obj).filter(([, v]) => v !== undefined),
   ) as Partial<T>;
+}
+
+/** Return a copy of `arr` with the item `id` swapped one slot up or down. */
+function moveInArray<T extends { id: string }>(
+  arr: T[],
+  id: string,
+  dir: 'up' | 'down',
+): T[] {
+  const i = arr.findIndex((x) => x.id === id);
+  if (i < 0) return arr;
+  const j = dir === 'up' ? i - 1 : i + 1;
+  if (j < 0 || j >= arr.length) return arr;
+  const next = [...arr];
+  [next[i], next[j]] = [next[j], next[i]];
+  return next;
 }
 
 /** Recompute unlocked achievements for a kid; returns newly-unlocked ids. */
@@ -199,6 +216,9 @@ export const useStore = create<Store>()(
         set((s) => ({ behaviours: s.behaviours.filter((x) => x.id !== id) }));
       },
 
+      moveBehaviour: (id, dir) =>
+        set((s) => ({ behaviours: moveInArray(s.behaviours, id, dir) })),
+
       addReward: (r) =>
         set((s) => ({
           rewards: [
@@ -240,6 +260,9 @@ export const useStore = create<Store>()(
         void deleteImage(r?.imageId);
         set((s) => ({ rewards: s.rewards.filter((x) => x.id !== id) }));
       },
+
+      moveReward: (id, dir) =>
+        set((s) => ({ rewards: moveInArray(s.rewards, id, dir) })),
 
       awardStars: (kidId, behaviour, stars) => {
         const amount = clampStars(stars ?? behaviour.defaultStars);

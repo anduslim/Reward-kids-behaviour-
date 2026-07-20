@@ -8,6 +8,7 @@ import { StoredImage } from '../components/StoredImage';
 import { ImageUpload } from '../components/ImageUpload';
 import { EmptyState, PageHeader } from '../components/Layout';
 import { ModalShell, staggerChild, staggerParent } from '../components/motion';
+import { ReorderControls } from '../components/ReorderControls';
 import { StarStepper } from './BehavioursPage';
 import { useParentGate } from '../components/ParentGate';
 import { useCelebration } from '../components/Celebration';
@@ -25,6 +26,7 @@ export function RewardsPage() {
   const addReward = useStore((s) => s.addReward);
   const updateReward = useStore((s) => s.updateReward);
   const deleteReward = useStore((s) => s.deleteReward);
+  const moveReward = useStore((s) => s.moveReward);
   const redeemReward = useStore((s) => s.redeemReward);
   const kid = useSelectedKid();
   const { requirePin } = useParentGate();
@@ -123,7 +125,7 @@ export function RewardsPage() {
           animate="show"
           className="grid gap-3 sm:grid-cols-2"
         >
-          {rewards.map((r) => {
+          {rewards.map((r, i) => {
             const affordable = kid ? kid.starBalance >= r.starCost : false;
             const inStock = r.quantity > 0;
             const canRedeem = affordable && inStock && !!kid;
@@ -136,6 +138,15 @@ export function RewardsPage() {
                 className="card overflow-hidden transition-shadow hover:shadow-card-hover"
               >
                 <div className="relative h-32 w-full bg-gradient-to-br from-grape-50 to-brand-50">
+                  <div className="absolute left-2 top-2 z-10 rounded-lg bg-white/85 px-0.5 py-0.5 shadow-sm backdrop-blur-sm">
+                    <ReorderControls
+                      onUp={() => requirePin(() => moveReward(r.id, 'up'))}
+                      onDown={() => requirePin(() => moveReward(r.id, 'down'))}
+                      isFirst={i === 0}
+                      isLast={i === rewards.length - 1}
+                      label={r.name}
+                    />
+                  </div>
                   {r.imageId ? (
                     <StoredImage
                       imageId={r.imageId}
