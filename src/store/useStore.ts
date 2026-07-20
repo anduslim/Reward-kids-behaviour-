@@ -53,6 +53,9 @@ interface Actions {
   // ledger / gamification
   awardStars: (kidId: string, behaviour: Behaviour, stars?: number) => string[];
   redeemReward: (kidId: string, rewardId: string) => RedeemResult;
+  /** Undo a ledger entry: reverse its star change (and, for a redeem, restore
+   *  stock and remove its queued redemption). For fixing a mis-tapped star. */
+  removeLedgerEntry: (entryId: string) => void;
 
   // redemption fulfillment queue
   fulfillRedemption: (id: string) => void;
@@ -61,6 +64,9 @@ interface Actions {
 
   // pin
   setPinHash: (hash: string | undefined) => void;
+
+  // preferences
+  setLeaderboardEnabled: (enabled: boolean) => void;
 
   // data management
   replaceAll: (state: Partial<AppState>) => void;
@@ -80,6 +86,7 @@ function initialData(): AppState {
     redemptions: [],
     unlockedAchievements: {},
     selectedKidId: undefined,
+    leaderboardEnabled: false,
   };
 }
 
@@ -315,6 +322,43 @@ export const useStore = create<Store>()(
         return { ok: true, newly };
       },
 
+      removeLedgerEntry: (entryId) =>
+        set((s) => {
+          const entry = s.ledger.find((e) => e.id === entryId);
+          if (!entry) return {} as Partial<AppState>;
+          // Reverse the balance: an award added `stars`, a redeem subtracted it,
+          // so undoing either is `balance - entry.stars`. Clamp to avoid negatives.
+          const kids = s.kids.map((k) =>
+            k.id === entry.kidId
+              ? { ...k, starBalance: Math.max(0, k.starBalance - entry.stars) }
+              : k,
+          );
+          let rewards = s.rewards;
+          let redemptions = s.redemptions;
+          if (entry.type === 'redeem') {
+            rewards = s.rewards.map((r) =>
+              r.id === entry.refId ? { ...r, quantity: r.quantity + 1 } : r,
+            );
+            // Drop the matching queued redemption (same kid/reward/timestamp).
+            const idx = s.redemptions.findIndex(
+              (r) =>
+                r.kidId === entry.kidId &&
+                r.rewardId === entry.refId &&
+                r.createdAt === entry.createdAt,
+            );
+            if (idx >= 0) redemptions = s.redemptions.filter((_, i) => i !== idx);
+          }
+          const next: AppState = {
+            ...s,
+            kids,
+            rewards,
+            redemptions,
+            ledger: s.ledger.filter((e) => e.id !== entryId),
+          };
+          const res = refreshAchievements(next, entry.kidId);
+          return { ...next, unlockedAchievements: res.unlocked };
+        }),
+
       fulfillRedemption: (id) =>
         set((s) => ({
           redemptions: s.redemptions.map((r) =>
@@ -335,6 +379,8 @@ export const useStore = create<Store>()(
         set((s) => ({ redemptions: s.redemptions.filter((r) => r.id !== id) })),
 
       setPinHash: (hash) => set({ pinHash: hash }),
+
+      setLeaderboardEnabled: (enabled) => set({ leaderboardEnabled: enabled }),
 
       replaceAll: (incoming) =>
         set((s) => ({

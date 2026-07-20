@@ -82,4 +82,6 @@ export interface AppState {
   redemptions: Redemption[];
   unlockedAchievements: Record<string, string[]>; // kidId -> achievementIds
   selectedKidId?: string;
+  /** Opt-in flag for the (upcoming) private family-group leaderboard. */
+  leaderboardEnabled: boolean;
 }

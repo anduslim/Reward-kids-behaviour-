@@ -12,6 +12,7 @@ import { AvatarPage } from './pages/AvatarPage';
 import { BehavioursPage } from './pages/BehavioursPage';
 import { RewardsPage } from './pages/RewardsPage';
 import { RedemptionsPage } from './pages/RedemptionsPage';
+import { LeaderboardPage } from './pages/LeaderboardPage';
 import { AchievementsPage } from './pages/AchievementsPage';
 import { SettingsPage } from './pages/SettingsPage';
 
@@ -53,6 +54,7 @@ export function App() {
                   <Route path="/behaviours" element={<BehavioursPage />} />
                   <Route path="/rewards" element={<RewardsPage />} />
                   <Route path="/queue" element={<RedemptionsPage />} />
+                  <Route path="/leaderboard" element={<LeaderboardPage />} />
                   <Route path="/achievements" element={<AchievementsPage />} />
                   <Route path="/settings" element={<SettingsPage />} />
                 </Routes>
