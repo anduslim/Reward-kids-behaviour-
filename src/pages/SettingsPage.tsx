@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { get, set } from 'idb-keyval';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '../store/useStore';
@@ -54,6 +55,7 @@ export function SettingsPage() {
         ledger,
         redemptions,
         unlockedAchievements,
+        leaderboardEnabled,
       } = useStore.getState();
       // Bundle referenced images from IndexedDB as data URLs.
       const imageIds = [
@@ -69,7 +71,15 @@ export function SettingsPage() {
         app: 'star-kids',
         schemaVersion,
         exportedAt: new Date().toISOString(),
-        state: { kids, behaviours, rewards, ledger, redemptions, unlockedAchievements },
+        state: {
+          kids,
+          behaviours,
+          rewards,
+          ledger,
+          redemptions,
+          unlockedAchievements,
+          leaderboardEnabled,
+        },
         images,
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -112,6 +122,7 @@ export function SettingsPage() {
           ledger,
           redemptions,
           unlockedAchievements,
+          leaderboardEnabled: parsed.state.leaderboardEnabled === true,
         });
         sweepNow(); // drop blobs from the pre-import state that are now unreferenced
         flash('Backup restored. ✓');
@@ -198,6 +209,41 @@ export function SettingsPage() {
             onChange={(e) => importData(e.target.files?.[0])}
           />
         </div>
+      </Section>
+
+      <Section title="Family Leaderboard" emoji="🏆">
+        <div className="flex items-start justify-between gap-4">
+          <p className="text-sm text-slate-500">
+            Opt in to a private, family-only leaderboard <span className="font-bold">(coming soon)</span>.
+            Only shared kids’ nicknames, avatars and star totals would sync between family devices —
+            behaviours, photos and history always stay on this device.
+          </p>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={state.leaderboardEnabled}
+            aria-label="Enable Family Leaderboard"
+            onClick={() =>
+              requirePin(() => state.setLeaderboardEnabled(!state.leaderboardEnabled))
+            }
+            className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+              state.leaderboardEnabled ? 'bg-brand-500' : 'bg-slate-300'
+            }`}
+          >
+            <motion.span
+              layout
+              transition={{ type: 'spring', stiffness: 500, damping: 32 }}
+              className={`absolute top-0.5 h-6 w-6 rounded-full bg-white shadow ${
+                state.leaderboardEnabled ? 'left-[1.375rem]' : 'left-0.5'
+              }`}
+            />
+          </button>
+        </div>
+        {state.leaderboardEnabled && (
+          <Link to="/leaderboard" className="btn-ghost mt-3 inline-flex !py-2 text-sm">
+            🏆 Open leaderboard
+          </Link>
+        )}
       </Section>
 
       <Section title="Danger zone" emoji="⚠️">

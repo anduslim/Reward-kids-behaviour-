@@ -7,6 +7,7 @@ import { StoredImage } from '../components/StoredImage';
 import { ImageUpload } from '../components/ImageUpload';
 import { EmptyState, PageHeader } from '../components/Layout';
 import { ModalShell, staggerChild, staggerParent } from '../components/motion';
+import { ReorderControls } from '../components/ReorderControls';
 import { useParentGate } from '../components/ParentGate';
 import { clampStars, starLabel } from '../lib/stars';
 
@@ -17,6 +18,7 @@ export function BehavioursPage() {
   const addBehaviour = useStore((s) => s.addBehaviour);
   const updateBehaviour = useStore((s) => s.updateBehaviour);
   const deleteBehaviour = useStore((s) => s.deleteBehaviour);
+  const moveBehaviour = useStore((s) => s.moveBehaviour);
   const { requirePin } = useParentGate();
   const [editing, setEditing] = useState<Behaviour | 'new' | null>(null);
 
@@ -45,14 +47,21 @@ export function BehavioursPage() {
           className="space-y-3"
         >
           <AnimatePresence initial={false}>
-            {behaviours.map((b) => (
+            {behaviours.map((b, i) => (
               <motion.div
                 key={b.id}
                 layout
                 variants={staggerChild}
                 exit={{ opacity: 0, x: -24, transition: { duration: 0.18 } }}
-                className="card flex items-center gap-3 p-3"
+                className="card flex items-center gap-2.5 p-3"
               >
+                <ReorderControls
+                  onUp={() => requirePin(() => moveBehaviour(b.id, 'up'))}
+                  onDown={() => requirePin(() => moveBehaviour(b.id, 'down'))}
+                  isFirst={i === 0}
+                  isLast={i === behaviours.length - 1}
+                  label={b.name}
+                />
                 {b.imageId ? (
                   <StoredImage
                     imageId={b.imageId}

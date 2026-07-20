@@ -2,7 +2,14 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useStore } from '../store/useStore';
 
-const links = [
+interface NavItem {
+  to: string;
+  label: string;
+  emoji: string;
+  end?: boolean;
+}
+
+const BASE_LINKS: NavItem[] = [
   { to: '/', label: 'Home', emoji: '🏠', end: true },
   { to: '/behaviours', label: 'Behaviours', emoji: '✅' },
   { to: '/rewards', label: 'Rewards', emoji: '🎁' },
@@ -17,6 +24,16 @@ export function NavBar() {
   const pendingCount = useStore(
     (s) => s.redemptions.filter((r) => r.status === 'pending').length,
   );
+  const leaderboardEnabled = useStore((s) => s.leaderboardEnabled);
+
+  // Insert the Leaderboard tab (after Awards) only when the user opts in.
+  const links: NavItem[] = leaderboardEnabled
+    ? [
+        ...BASE_LINKS.slice(0, 5),
+        { to: '/leaderboard', label: 'Ranks', emoji: '🏆' },
+        ...BASE_LINKS.slice(5),
+      ]
+    : BASE_LINKS;
 
   return (
     <nav className="sticky bottom-0 z-30 border-t border-slate-100 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur md:bottom-auto md:top-0 md:border-b md:border-t-0">

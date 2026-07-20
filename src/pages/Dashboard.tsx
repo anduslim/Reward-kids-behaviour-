@@ -26,6 +26,7 @@ export function Dashboard() {
   const behaviours = useMemo(() => allBehaviours.filter((b) => b.active), [allBehaviours]);
   const ledger = useStore((s) => s.ledger);
   const awardStars = useStore((s) => s.awardStars);
+  const removeLedgerEntry = useStore((s) => s.removeLedgerEntry);
   const kid = useSelectedKid();
   const { requirePin } = useParentGate();
   const { celebrate } = useCelebration();
@@ -268,23 +269,42 @@ export function Dashboard() {
                   layout
                   initial={{ opacity: 0, x: -16 }}
                   animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, height: 0, transition: { duration: 0.2 } }}
                   transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-                  className="flex items-center justify-between px-4 py-3"
+                  className="group flex items-center justify-between gap-2 px-4 py-3"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-50 text-base ring-1 ring-slate-100">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-50 text-base ring-1 ring-slate-100">
                       {e.type === 'redeem' ? '🎁' : '⭐'}
                     </span>
-                    <span className="text-sm font-semibold text-slate-700">{e.label}</span>
+                    <span className="truncate text-sm font-semibold text-slate-700">
+                      {e.label}
+                    </span>
                   </div>
-                  <span
-                    className={`text-sm font-extrabold tabular-nums ${
-                      e.stars >= 0 ? 'text-emerald-500' : 'text-rose-500'
-                    }`}
-                  >
-                    {e.stars >= 0 ? '+' : ''}
-                    {starLabel(e.stars)}★
-                  </span>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <span
+                      className={`text-sm font-extrabold tabular-nums ${
+                        e.stars >= 0 ? 'text-emerald-500' : 'text-rose-500'
+                      }`}
+                    >
+                      {e.stars >= 0 ? '+' : ''}
+                      {starLabel(e.stars)}★
+                    </span>
+                    <button
+                      onClick={() =>
+                        requirePin(() => {
+                          const verb = e.type === 'redeem' ? 'Undo redeeming' : 'Remove';
+                          if (confirm(`${verb} "${e.label}" (${starLabel(e.stars)}★)?`))
+                            removeLedgerEntry(e.id);
+                        })
+                      }
+                      aria-label={`Remove ${e.label}`}
+                      title="Remove this entry"
+                      className="rounded-lg px-1.5 py-1 text-xs text-slate-300 transition hover:bg-red-50 hover:text-red-400 active:scale-90 sm:opacity-0 sm:group-hover:opacity-100"
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </motion.div>
               ))}
             </AnimatePresence>
