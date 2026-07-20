@@ -46,8 +46,15 @@ export function SettingsPage() {
 
   const exportData = () =>
     requirePin(async () => {
-      const { schemaVersion, kids, behaviours, rewards, ledger, unlockedAchievements } =
-        useStore.getState();
+      const {
+        schemaVersion,
+        kids,
+        behaviours,
+        rewards,
+        ledger,
+        redemptions,
+        unlockedAchievements,
+      } = useStore.getState();
       // Bundle referenced images from IndexedDB as data URLs.
       const imageIds = [
         ...behaviours.map((b) => b.imageId),
@@ -62,7 +69,7 @@ export function SettingsPage() {
         app: 'star-kids',
         schemaVersion,
         exportedAt: new Date().toISOString(),
-        state: { kids, behaviours, rewards, ledger, unlockedAchievements },
+        state: { kids, behaviours, rewards, ledger, redemptions, unlockedAchievements },
         images,
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -94,7 +101,18 @@ export function SettingsPage() {
           );
         }
         const { kids, behaviours, rewards, ledger, unlockedAchievements } = parsed.state;
-        state.replaceAll({ kids, behaviours, rewards, ledger, unlockedAchievements });
+        // Older backups predate the redemption queue — default to empty.
+        const redemptions = Array.isArray(parsed.state.redemptions)
+          ? parsed.state.redemptions
+          : [];
+        state.replaceAll({
+          kids,
+          behaviours,
+          rewards,
+          ledger,
+          redemptions,
+          unlockedAchievements,
+        });
         sweepNow(); // drop blobs from the pre-import state that are now unreferenced
         flash('Backup restored. ✓');
       } catch {
@@ -192,9 +210,12 @@ export function SettingsPage() {
       </Section>
       </motion.div>
 
-      <p className="mt-6 text-center text-xs font-semibold text-slate-400">
-        ⭐ Star Kids · data stored locally in your browser
-      </p>
+      <div className="mt-6 text-center text-xs font-semibold text-slate-400">
+        <p>⭐ Star Kids · data stored locally in your browser</p>
+        <p className="mt-1 text-slate-300">
+          v{__APP_VERSION__} · {__GIT_SHA__} · {__BUILD_DATE__}
+        </p>
+      </div>
     </div>
   );
 }

@@ -4,8 +4,10 @@ import { NavBar } from './NavBar';
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col md:flex-col-reverse">
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-28 pt-6 md:pb-8 md:pt-24">
+    // app-shell uses 100dvh (visible viewport, vh fallback) so the bottom nav
+    // sits flush on iOS Safari instead of floating above the fold.
+    <div className="app-shell flex flex-col md:flex-col-reverse">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 pb-24 pt-6 md:pb-8 md:pt-24">
         {children}
       </main>
       <NavBar />

@@ -33,6 +33,12 @@ body {
 }
 
 @layer components {
+  /* Full-height app shell. dvh (declared last) wins on modern browsers so the
+     shell matches the *visible* viewport; 100vh is the fallback for old ones. */
+  .app-shell {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
   .card {
     @apply rounded-3xl bg-white shadow-card ring-1 ring-slate-100;
   }
