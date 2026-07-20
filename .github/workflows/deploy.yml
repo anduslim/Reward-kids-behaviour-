@@ -5,17 +5,19 @@ on:
     branches: [main]
   workflow_dispatch:
 
-# Only need to push the built site to the gh-pages branch.
+# Deploy the build directly to Pages from main (same source branch as Vercel).
+# Note: this requires Pages "Source" to be set to "GitHub Actions" in repo settings.
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
-# Don't run overlapping deploys.
 concurrency:
-  group: pages-deploy
-  cancel-in-progress: true
+  group: pages
+  cancel-in-progress: false
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,18 +39,21 @@ jobs:
           mkdir -p _site/app
           cp -r landing/. _site/
           cp -r dist/. _site/app/
-          # SPA fallback for deep links into the app
           cp dist/index.html _site/app/404.html
-          # Serve files verbatim (don't let Jekyll strip assets/underscored files)
           touch _site/.nojekyll
 
-      - name: Publish to gh-pages branch
-        uses: peaceiris/actions-gh-pages@v4
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./_site
-          publish_branch: gh-pages
-          force_orphan: true
-          user_name: github-actions[bot]
-          user_email: github-actions[bot]@users.noreply.github.com
-          commit_message: "Deploy ${{ github.sha }}"
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
