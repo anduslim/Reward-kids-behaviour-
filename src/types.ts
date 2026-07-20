@@ -53,6 +53,25 @@ export interface LedgerEntry {
   createdAt: string; // ISO datetime, used for streaks
 }
 
+export type RedemptionStatus = 'pending' | 'fulfilled';
+
+/**
+ * A redeemed reward awaiting hand-off. Reward details are snapshotted so the
+ * queue stays accurate even if the reward is later edited or deleted.
+ */
+export interface Redemption {
+  id: string;
+  kidId: string;
+  rewardId: string;
+  rewardName: string;
+  icon?: string;
+  imageId?: string;
+  starCost: number;
+  createdAt: string; // ISO datetime redeemed
+  status: RedemptionStatus;
+  fulfilledAt?: string; // ISO datetime handed over
+}
+
 export interface AppState {
   schemaVersion: number;
   pinHash?: string;
@@ -60,6 +79,7 @@ export interface AppState {
   behaviours: Behaviour[];
   rewards: Reward[];
   ledger: LedgerEntry[];
+  redemptions: Redemption[];
   unlockedAchievements: Record<string, string[]>; // kidId -> achievementIds
   selectedKidId?: string;
 }

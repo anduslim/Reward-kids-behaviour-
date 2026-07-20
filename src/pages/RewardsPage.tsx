@@ -13,7 +13,10 @@ import { useParentGate } from '../components/ParentGate';
 import { useCelebration } from '../components/Celebration';
 import { clampStars, starLabel } from '../lib/stars';
 
-const REWARD_EMOJIS = ['🎁', '📚', '🍦', '🎬', '🛝', '🍭', '🎮', '🧩', '🚲', '🎨', '🍕', '🦸'];
+const REWARD_EMOJIS = [
+  '🎁', '📚', '🍦', '🎬', '🛝', '🍭', '🎮', '🧩', '🚲', '🎨', '🍕', '🦸',
+  '🍬', '🍰', '▶️', '⚔️', '🛡️',
+];
 
 export function RewardsPage() {
   const rewards = useStore((s) => s.rewards);
@@ -45,7 +48,7 @@ export function RewardsPage() {
       if (res.ok) {
         burst();
         if (res.newly?.length) celebrate(res.newly);
-        flash(`${kid.name} redeemed "${reward.name}"! 🎉`);
+        flash(`${kid.name} redeemed "${reward.name}"! 🎉 Added to the queue.`);
       } else if (res.reason === 'insufficient') {
         flash(`Not enough stars for "${reward.name}".`);
       } else if (res.reason === 'outofstock') {

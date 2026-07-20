@@ -6,6 +6,7 @@ import type {
   Behaviour,
   Gender,
   Kid,
+  Redemption,
   Reward,
 } from '../types';
 import { uid } from '../lib/id';
@@ -53,6 +54,11 @@ interface Actions {
   awardStars: (kidId: string, behaviour: Behaviour, stars?: number) => string[];
   redeemReward: (kidId: string, rewardId: string) => RedeemResult;
 
+  // redemption fulfillment queue
+  fulfillRedemption: (id: string) => void;
+  reopenRedemption: (id: string) => void;
+  deleteRedemption: (id: string) => void;
+
   // pin
   setPinHash: (hash: string | undefined) => void;
 
@@ -71,6 +77,7 @@ function initialData(): AppState {
     behaviours: seedBehaviours(),
     rewards: seedRewards(),
     ledger: [],
+    redemptions: [],
     unlockedAchievements: {},
     selectedKidId: undefined,
   };
@@ -134,6 +141,7 @@ export const useStore = create<Store>()(
           return {
             kids: s.kids.filter((k) => k.id !== id),
             ledger: s.ledger.filter((e) => e.kidId !== id),
+            redemptions: s.redemptions.filter((r) => r.kidId !== id),
             unlockedAchievements: rest,
             selectedKidId:
               s.selectedKidId === id
@@ -277,6 +285,18 @@ export const useStore = create<Store>()(
             stars: -reward.starCost,
             createdAt: new Date().toISOString(),
           };
+          // Snapshot the reward so the fulfillment queue survives later edits/deletes.
+          const redemption: Redemption = {
+            id: uid('rdm_'),
+            kidId,
+            rewardId: reward.id,
+            rewardName: reward.name,
+            icon: reward.icon,
+            imageId: reward.imageId,
+            starCost: reward.starCost,
+            createdAt: entry.createdAt,
+            status: 'pending',
+          };
           const next: AppState = {
             ...cur,
             kids: cur.kids.map((k) =>
@@ -286,6 +306,7 @@ export const useStore = create<Store>()(
               r.id === reward.id ? { ...r, quantity: r.quantity - 1 } : r,
             ),
             ledger: [...cur.ledger, entry],
+            redemptions: [...cur.redemptions, redemption],
           };
           const res = refreshAchievements(next, kidId);
           newly = res.newly;
@@ -293,6 +314,25 @@ export const useStore = create<Store>()(
         });
         return { ok: true, newly };
       },
+
+      fulfillRedemption: (id) =>
+        set((s) => ({
+          redemptions: s.redemptions.map((r) =>
+            r.id === id
+              ? { ...r, status: 'fulfilled', fulfilledAt: new Date().toISOString() }
+              : r,
+          ),
+        })),
+
+      reopenRedemption: (id) =>
+        set((s) => ({
+          redemptions: s.redemptions.map((r) =>
+            r.id === id ? { ...r, status: 'pending', fulfilledAt: undefined } : r,
+          ),
+        })),
+
+      deleteRedemption: (id) =>
+        set((s) => ({ redemptions: s.redemptions.filter((r) => r.id !== id) })),
 
       setPinHash: (hash) => set({ pinHash: hash }),
 
