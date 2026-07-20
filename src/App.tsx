@@ -17,6 +17,11 @@ import { SettingsPage } from './pages/SettingsPage';
 export function App() {
   const location = useLocation();
 
+  // Start each page at the top when navigating.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
+
   // On startup, drop any image blobs no longer referenced by state (orphans from
   // cancelled forms, resets, or imports on a previous visit).
   useEffect(() => {
