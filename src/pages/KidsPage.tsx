@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useStore, type NewKidInput } from '../store/useStore';
+import { useLeaderboard } from '../store/useLeaderboard';
 import type { Gender, Kid } from '../types';
 import { AvatarView } from '../components/AvatarView';
 import { EmptyState, PageHeader } from '../components/Layout';
@@ -20,9 +21,17 @@ export function KidsPage() {
   const addKid = useStore((s) => s.addKid);
   const updateKid = useStore((s) => s.updateKid);
   const deleteKid = useStore((s) => s.deleteKid);
+  const leaderboardEnabled = useStore((s) => s.leaderboardEnabled);
+  const syncKids = useLeaderboard((s) => s.syncKids);
   const { requirePin } = useParentGate();
 
   const [editing, setEditing] = useState<Kid | 'new' | null>(null);
+
+  const toggleShare = (kid: Kid) =>
+    requirePin(() => {
+      updateKid(kid.id, { sharedInGroup: !kid.sharedInGroup });
+      void syncKids();
+    });
 
   return (
     <div>
@@ -97,6 +106,18 @@ export function KidsPage() {
                     >
                       🗑️ Remove
                     </button>
+                    {leaderboardEnabled && (
+                      <button
+                        className={`btn-ghost !px-3 !py-1.5 text-xs ${
+                          kid.sharedInGroup ? '!bg-brand-50 !text-brand-600 !ring-brand-200' : ''
+                        }`}
+                        onClick={() => toggleShare(kid)}
+                        aria-pressed={!!kid.sharedInGroup}
+                        title="Show this kid on the family leaderboard"
+                      >
+                        {kid.sharedInGroup ? '🏆 Shared' : '🏆 Share'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </motion.div>

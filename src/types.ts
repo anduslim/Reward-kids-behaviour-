@@ -19,6 +19,8 @@ export interface Kid {
   avatar: AvatarConfig;
   starBalance: number; // supports 0.5 increments
   createdAt: string; // ISO
+  /** Opt-in: include this kid on the shared family-group leaderboard. */
+  sharedInGroup?: boolean;
 }
 
 export interface Behaviour {
