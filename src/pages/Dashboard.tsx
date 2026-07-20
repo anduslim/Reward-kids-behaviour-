@@ -32,6 +32,7 @@ export function Dashboard() {
 
   const [flash, setFlash] = useState<{ id: string; amount: number; key: number } | null>(null);
   const [custom, setCustom] = useState<Behaviour | null>(null);
+  const [starsOpen, setStarsOpen] = useState(false);
 
   const kidLedger = useMemo(
     () => ledger.filter((e) => e.kidId === kid?.id),
@@ -98,7 +99,7 @@ export function Dashboard() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 28 }}
-          className="card relative mb-6 flex items-center gap-4 overflow-hidden border-none bg-gradient-to-br from-brand-400 via-brand-500 to-grape-600 p-5 text-white shadow-pop ring-0"
+          className="card relative mb-6 flex flex-wrap items-center gap-x-4 gap-y-0 overflow-hidden border-none bg-gradient-to-br from-brand-400 via-brand-500 to-grape-600 p-5 text-white shadow-pop ring-0"
         >
           {/* decorative twinkles */}
           <span aria-hidden className="absolute right-5 top-3 text-lg text-white/50 animate-twinkle">
@@ -125,14 +126,34 @@ export function Dashboard() {
           <AvatarView config={kid.avatar} size={76} className="relative shrink-0 ring-4 ring-white/40" />
           <div className="relative flex-1">
             <div className="text-lg font-extrabold drop-shadow-sm">{kid.name}</div>
-            <div className="flex items-baseline gap-1.5">
+            {/* Tap the balance to pop out the actual stars */}
+            <motion.button
+              type="button"
+              onClick={() => setStarsOpen((v) => !v)}
+              whileTap={{ scale: 0.96 }}
+              aria-expanded={starsOpen}
+              title="Tap to see your stars"
+              className="group -ml-1 flex items-baseline gap-1.5 rounded-xl px-1 text-left"
+            >
               <AnimatedNumber
                 value={kid.starBalance}
                 format={(n) => starLabel(roundToHalf(n))}
                 className="text-[2.6rem] font-black leading-none drop-shadow-sm"
               />
-              <span className="text-2xl text-amber-300 drop-shadow-sm">★</span>
-            </div>
+              <motion.span
+                animate={{ rotate: [0, -12, 12, 0], scale: starsOpen ? 1.25 : 1 }}
+                transition={{ rotate: { duration: 1.6, repeat: Infinity, repeatDelay: 1.4 } }}
+                className="text-2xl text-amber-300 drop-shadow-sm"
+              >
+                ★
+              </motion.span>
+              <motion.span
+                animate={{ rotate: starsOpen ? 180 : 0 }}
+                className="translate-y-[-2px] text-sm text-white/70 transition group-hover:text-white"
+              >
+                ▾
+              </motion.span>
+            </motion.button>
             {streak.current > 0 && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.8 }}
@@ -144,6 +165,24 @@ export function Dashboard() {
               </motion.div>
             )}
           </div>
+
+          {/* Expanding star breakdown, full hero width */}
+          <AnimatePresence initial={false}>
+            {starsOpen && (
+              <motion.div
+                key={`stars-${kid.id}`}
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                className="relative w-full basis-full overflow-hidden"
+              >
+                <div className="mt-3 rounded-2xl bg-white/15 p-3 backdrop-blur-sm">
+                  <StarExplosion total={kid.starBalance} />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       )}
 
@@ -318,5 +357,91 @@ function CustomAwardModal({
         </button>
       </div>
     </ModalShell>
+  );
+}
+
+/**
+ * Pops the star balance out into actual stars. Every 10 stars becomes one big
+ * glowing "10" star, remaining ones are regular stars, and a leftover half is a
+ * half-filled star — so kids can literally count what they've earned.
+ */
+function StarExplosion({ total }: { total: number }) {
+  const whole = Math.floor(total);
+  const tens = Math.floor(whole / 10);
+  const ones = whole % 10;
+  const hasHalf = total - whole >= 0.5;
+
+  type Token = { kind: 'ten' | 'one' | 'half' };
+  const tokens: Token[] = [
+    ...Array.from({ length: tens }, () => ({ kind: 'ten' as const })),
+    ...Array.from({ length: ones }, () => ({ kind: 'one' as const })),
+    ...(hasHalf ? [{ kind: 'half' as const }] : []),
+  ];
+
+  if (tokens.length === 0) {
+    return (
+      <p className="py-1 text-center text-sm font-semibold text-white/85">
+        No stars yet — earn your first one! ⭐
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {tokens.map((t, idx) => (
+          <motion.span
+            key={idx}
+            initial={{ scale: 0, rotate: -70, y: 10 }}
+            animate={{ scale: 1, rotate: 0, y: 0 }}
+            transition={{ type: 'spring', stiffness: 520, damping: 13, delay: idx * 0.035 }}
+            whileHover={{ scale: 1.3, rotate: 10 }}
+            className="relative inline-flex items-center justify-center"
+          >
+            {t.kind === 'ten' && (
+              <span className="relative inline-flex h-9 w-9 items-center justify-center">
+                <motion.span
+                  aria-hidden
+                  animate={{ y: [0, -3, 0] }}
+                  transition={{
+                    duration: 1.8,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                    delay: (idx % 5) * 0.12,
+                  }}
+                  className="text-[2.4rem] leading-none text-yellow-300"
+                  style={{ filter: 'drop-shadow(0 0 6px rgba(253,224,71,0.75))' }}
+                >
+                  ★
+                </motion.span>
+                <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black text-grape-700">
+                  10
+                </span>
+              </span>
+            )}
+            {t.kind === 'one' && (
+              <span className="text-2xl leading-none text-amber-200 drop-shadow">★</span>
+            )}
+            {t.kind === 'half' && (
+              <span className="relative inline-block text-2xl leading-none">
+                <span className="text-white/25">★</span>
+                <span className="absolute inset-0 w-1/2 overflow-hidden text-amber-200">★</span>
+              </span>
+            )}
+          </motion.span>
+        ))}
+      </div>
+      <p className="mt-2 text-xs font-semibold text-white/80">
+        {tens > 0 ? (
+          <>
+            <span className="text-yellow-300">★</span> big star = 10 · {tens}×10
+            {ones > 0 ? ` + ${ones}` : ''}
+            {hasHalf ? ' + ½' : ''} = {starLabel(total)} stars
+          </>
+        ) : (
+          <>That’s {starLabel(total)} stars — keep going! 🚀</>
+        )}
+      </p>
+    </div>
   );
 }
