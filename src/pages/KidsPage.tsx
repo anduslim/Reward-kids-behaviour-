@@ -125,12 +125,13 @@ function KidForm({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            onSubmit({
-              name,
-              birthday,
-              gender,
-              avatar: kid ? undefined : randomAvatar(),
-            });
+            // For an edit, omit `avatar` entirely — never send `avatar: undefined`,
+            // which would overwrite (and wipe) the kid's existing avatar.
+            onSubmit(
+              kid
+                ? { name, birthday, gender }
+                : { name, birthday, gender, avatar: randomAvatar() },
+            );
           }}
           className="space-y-4"
         >

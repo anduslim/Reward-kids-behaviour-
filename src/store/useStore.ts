@@ -26,7 +26,9 @@ export interface NewKidInput {
 
 export interface RedeemResult {
   ok: boolean;
-  reason?: 'insufficient' | 'outofstock';
+  reason?: 'insufficient' | 'outofstock' | 'notfound';
+  /** Achievement ids newly unlocked by this redemption (e.g. first reward). */
+  newly?: string[];
 }
 
 interface Actions {
@@ -49,7 +51,7 @@ interface Actions {
 
   // ledger / gamification
   awardStars: (kidId: string, behaviour: Behaviour, stars?: number) => string[];
-  redeemReward: (kidId: string, reward: Reward) => RedeemResult;
+  redeemReward: (kidId: string, rewardId: string) => RedeemResult;
 
   // pin
   setPinHash: (hash: string | undefined) => void;
@@ -72,6 +74,13 @@ function initialData(): AppState {
     unlockedAchievements: {},
     selectedKidId: undefined,
   };
+}
+
+/** Drop keys whose value is `undefined` so a patch never wipes an existing field. */
+function stripUndefined<T extends object>(obj: T): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, v]) => v !== undefined),
+  ) as Partial<T>;
 }
 
 /** Recompute unlocked achievements for a kid; returns newly-unlocked ids. */
@@ -115,7 +124,7 @@ export const useStore = create<Store>()(
 
       updateKid: (id, patch) =>
         set((s) => ({
-          kids: s.kids.map((k) => (k.id === id ? { ...k, ...patch } : k)),
+          kids: s.kids.map((k) => (k.id === id ? { ...k, ...stripUndefined(patch) } : k)),
         })),
 
       deleteKid: (id) =>
@@ -148,7 +157,11 @@ export const useStore = create<Store>()(
           ],
         })),
 
-      updateBehaviour: (id, patch) =>
+      updateBehaviour: (id, patch) => {
+        const prev = get().behaviours.find((x) => x.id === id);
+        if (prev && 'imageId' in patch && patch.imageId !== prev.imageId) {
+          void deleteImage(prev.imageId); // old photo replaced/removed
+        }
         set((s) => ({
           behaviours: s.behaviours.map((b) =>
             b.id === id
@@ -162,7 +175,8 @@ export const useStore = create<Store>()(
                 }
               : b,
           ),
-        })),
+        }));
+      },
 
       deleteBehaviour: (id) => {
         const b = get().behaviours.find((x) => x.id === id);
@@ -183,7 +197,11 @@ export const useStore = create<Store>()(
           ],
         })),
 
-      updateReward: (id, patch) =>
+      updateReward: (id, patch) => {
+        const prev = get().rewards.find((x) => x.id === id);
+        if (prev && 'imageId' in patch && patch.imageId !== prev.imageId) {
+          void deleteImage(prev.imageId); // old photo replaced/removed
+        }
         set((s) => ({
           rewards: s.rewards.map((r) =>
             r.id === id
@@ -199,7 +217,8 @@ export const useStore = create<Store>()(
                 }
               : r,
           ),
-        })),
+        }));
+      },
 
       deleteReward: (id) => {
         const r = get().rewards.find((x) => x.id === id);
@@ -234,15 +253,21 @@ export const useStore = create<Store>()(
         return newly;
       },
 
-      redeemReward: (kidId, reward) => {
-        const state = get();
-        const kid = state.kids.find((k) => k.id === kidId);
-        if (!kid) return { ok: false };
+      redeemReward: (kidId, rewardId) => {
+        // Re-read everything from live state and validate + mutate atomically inside
+        // one `set`, so a stale reward object (e.g. captured before the PIN modal
+        // opened, or edited/depleted in the meantime) can never cause an
+        // over-redemption or negative stock.
+        const s = get();
+        const kid = s.kids.find((k) => k.id === kidId);
+        const reward = s.rewards.find((r) => r.id === rewardId);
+        if (!kid || !reward) return { ok: false, reason: 'notfound' };
         if (reward.quantity <= 0) return { ok: false, reason: 'outofstock' };
         if (kid.starBalance < reward.starCost)
           return { ok: false, reason: 'insufficient' };
 
-        set((s) => {
+        let newly: string[] = [];
+        set((cur) => {
           const entry = {
             id: uid('led_'),
             kidId,
@@ -253,19 +278,20 @@ export const useStore = create<Store>()(
             createdAt: new Date().toISOString(),
           };
           const next: AppState = {
-            ...s,
-            kids: s.kids.map((k) =>
+            ...cur,
+            kids: cur.kids.map((k) =>
               k.id === kidId ? { ...k, starBalance: k.starBalance - reward.starCost } : k,
             ),
-            rewards: s.rewards.map((r) =>
+            rewards: cur.rewards.map((r) =>
               r.id === reward.id ? { ...r, quantity: r.quantity - 1 } : r,
             ),
-            ledger: [...s.ledger, entry],
+            ledger: [...cur.ledger, entry],
           };
           const res = refreshAchievements(next, kidId);
+          newly = res.newly;
           return { ...next, unlockedAchievements: res.unlocked };
         });
-        return { ok: true };
+        return { ok: true, newly };
       },
 
       setPinHash: (hash) => set({ pinHash: hash }),

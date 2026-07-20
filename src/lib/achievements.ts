@@ -19,10 +19,15 @@ export interface KidLedgerContext {
   longestStreak: number;
 }
 
-/** yyyy-mm-dd in local time. */
-function dayKey(iso: string): string {
+/**
+ * Integer index of the local calendar day a timestamp falls on (days since the
+ * Unix epoch). Because the timezone offset is applied per-date, consecutive
+ * calendar days always differ by exactly 1 — even across DST transitions, where
+ * raw millisecond diffs would be 23h/25h.
+ */
+function localDayIndex(iso: string): number {
   const d = new Date(iso);
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+  return Math.floor((d.getTime() - d.getTimezoneOffset() * 60_000) / 86_400_000);
 }
 
 /** Compute current + longest daily streak (consecutive days with an award). */
@@ -30,23 +35,16 @@ export function computeStreaks(entries: LedgerEntry[]): {
   current: number;
   longest: number;
 } {
-  const days = new Set(
-    entries.filter((e) => e.type === 'award').map((e) => dayKey(e.createdAt)),
+  const daySet = new Set(
+    entries.filter((e) => e.type === 'award').map((e) => localDayIndex(e.createdAt)),
   );
-  if (days.size === 0) return { current: 0, longest: 0 };
+  if (daySet.size === 0) return { current: 0, longest: 0 };
 
-  // Convert day keys back into date numbers at midnight for comparison.
-  const toMidnight = (key: string) => {
-    const [y, m, d] = key.split('-').map(Number);
-    return new Date(y, m, d).getTime();
-  };
-  const sorted = [...days].map(toMidnight).sort((a, b) => a - b);
-  const DAY = 86_400_000;
-
+  const sorted = [...daySet].sort((a, b) => a - b);
   let longest = 1;
   let run = 1;
   for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] - sorted[i - 1] === DAY) {
+    if (sorted[i] - sorted[i - 1] === 1) {
       run += 1;
       longest = Math.max(longest, run);
     } else {
@@ -55,14 +53,12 @@ export function computeStreaks(entries: LedgerEntry[]): {
   }
 
   // Current streak: count back from today (or yesterday) while days are present.
-  const today = new Date();
-  const todayMid = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const daySet = new Set(sorted);
+  const today = localDayIndex(new Date().toISOString());
   let current = 0;
-  let cursor = daySet.has(todayMid) ? todayMid : todayMid - DAY;
+  let cursor = daySet.has(today) ? today : today - 1;
   while (daySet.has(cursor)) {
     current += 1;
-    cursor -= DAY;
+    cursor -= 1;
   }
   return { current, longest };
 }

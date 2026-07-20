@@ -4,6 +4,16 @@ import { useStore } from '../store/useStore';
 import { PageHeader } from '../components/Layout';
 import { useParentGate } from '../components/ParentGate';
 import { hashPin } from '../lib/pin';
+import { sweepOrphanImages } from '../lib/images';
+
+/** Delete image blobs no longer referenced by the current (post-change) state. */
+function sweepNow() {
+  const { behaviours, rewards } = useStore.getState();
+  const referenced = [...behaviours, ...rewards]
+    .map((x) => x.imageId)
+    .filter((x): x is string => Boolean(x));
+  void sweepOrphanImages(referenced);
+}
 
 export function SettingsPage() {
   const state = useStore();
@@ -69,17 +79,26 @@ export function SettingsPage() {
       try {
         const text = await file.text();
         const parsed = JSON.parse(text);
-        if (parsed.app !== 'star-kids' || !parsed.state) throw new Error('bad file');
-        // Restore images to IndexedDB first.
-        if (parsed.images) {
-          for (const [id, dataUrl] of Object.entries<string>(parsed.images)) {
-            set(id, await dataUrlToBlob(dataUrl));
-          }
+        if (parsed.app !== 'star-kids' || !isValidState(parsed.state)) {
+          throw new Error('bad file');
         }
-        state.replaceAll(parsed.state);
+        // Restore all images to IndexedDB first, and wait for every write to land
+        // before swapping state so components never read a missing blob.
+        if (parsed.images && typeof parsed.images === 'object') {
+          await Promise.all(
+            Object.entries<string>(parsed.images).map(([id, dataUrl]) =>
+              dataUrlToBlob(dataUrl).then((blob) => set(id, blob)),
+            ),
+          );
+        }
+        const { kids, behaviours, rewards, ledger, unlockedAchievements } = parsed.state;
+        state.replaceAll({ kids, behaviours, rewards, ledger, unlockedAchievements });
+        sweepNow(); // drop blobs from the pre-import state that are now unreferenced
         flash('Backup restored. ✓');
       } catch {
         flash('Could not read that file.');
+      } finally {
+        if (fileRef.current) fileRef.current.value = ''; // allow re-importing the same file
       }
     });
   };
@@ -88,6 +107,7 @@ export function SettingsPage() {
     requirePin(() => {
       if (confirm('Erase ALL kids, stars and history? This cannot be undone.')) {
         state.resetAll();
+        sweepNow(); // remove all now-unreferenced image blobs
         flash('Everything reset.');
       }
     });
@@ -197,4 +217,18 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
   const res = await fetch(dataUrl);
   return res.blob();
+}
+
+/** Minimal shape check so a malformed backup can't persist a state that crashes the app. */
+function isValidState(s: unknown): boolean {
+  if (!s || typeof s !== 'object') return false;
+  const v = s as Record<string, unknown>;
+  return (
+    Array.isArray(v.kids) &&
+    Array.isArray(v.behaviours) &&
+    Array.isArray(v.rewards) &&
+    Array.isArray(v.ledger) &&
+    !!v.unlockedAchievements &&
+    typeof v.unlockedAchievements === 'object'
+  );
 }

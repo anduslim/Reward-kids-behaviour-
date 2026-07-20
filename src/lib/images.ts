@@ -1,4 +1,4 @@
-import { get, set, del } from 'idb-keyval';
+import { get, set, del, keys } from 'idb-keyval';
 import { uid } from './id';
 
 const MAX_DIM = 512;
@@ -21,6 +21,21 @@ export async function getImageBlob(key: string): Promise<Blob | undefined> {
 
 export async function deleteImage(key?: string): Promise<void> {
   if (key) await del(key);
+}
+
+/**
+ * Delete any stored image blob that is no longer referenced by the app state.
+ * Catches blobs orphaned by form cancels, resets, and imports. Only touches our
+ * own `img_`-prefixed keys so it can't disturb other IndexedDB data.
+ */
+export async function sweepOrphanImages(referenced: Iterable<string>): Promise<void> {
+  const keep = new Set(referenced);
+  const all = await keys();
+  await Promise.all(
+    all
+      .filter((k): k is string => typeof k === 'string' && k.startsWith('img_') && !keep.has(k))
+      .map((k) => del(k)),
+  );
 }
 
 function resizeImage(file: File): Promise<Blob> {

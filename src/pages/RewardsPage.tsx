@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useStore, useSelectedKid } from '../store/useStore';
 import type { Reward } from '../types';
 import { AvatarView } from '../components/AvatarView';
@@ -23,24 +23,34 @@ export function RewardsPage() {
   const redeemReward = useStore((s) => s.redeemReward);
   const kid = useSelectedKid();
   const { requirePin } = useParentGate();
-  const { burst } = useCelebration();
+  const { burst, celebrate } = useCelebration();
 
   const [editing, setEditing] = useState<Reward | 'new' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const msgTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const flash = (text: string) => {
+    setMessage(text);
+    clearTimeout(msgTimer.current);
+    msgTimer.current = setTimeout(() => setMessage(null), 2500);
+  };
+  useEffect(() => () => clearTimeout(msgTimer.current), []);
 
   const handleRedeem = (reward: Reward) => {
     if (!kid) return;
     requirePin(() => {
-      const res = redeemReward(kid.id, reward);
+      const res = redeemReward(kid.id, reward.id);
       if (res.ok) {
         burst();
-        setMessage(`${kid.name} redeemed "${reward.name}"! 🎉`);
+        if (res.newly?.length) celebrate(res.newly);
+        flash(`${kid.name} redeemed "${reward.name}"! 🎉`);
       } else if (res.reason === 'insufficient') {
-        setMessage(`Not enough stars for "${reward.name}".`);
+        flash(`Not enough stars for "${reward.name}".`);
       } else if (res.reason === 'outofstock') {
-        setMessage(`"${reward.name}" is out of stock.`);
+        flash(`"${reward.name}" is out of stock.`);
+      } else {
+        flash(`"${reward.name}" is no longer available.`);
       }
-      setTimeout(() => setMessage(null), 2500);
     });
   };
 

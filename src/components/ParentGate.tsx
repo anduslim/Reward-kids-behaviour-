@@ -2,12 +2,16 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
 import { useStore } from '../store/useStore';
 import { hashPin, verifyPin } from '../lib/pin';
+
+/** Auto-relock the parent gate after this much inactivity. */
+const RELOCK_MS = 3 * 60 * 1000;
 
 interface GateContextValue {
   /** Run an action, prompting for the parent PIN first if the gate is locked. */
@@ -31,6 +35,13 @@ export function ParentGateProvider({ children }: { children: ReactNode }) {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
   const pendingAction = useRef<(() => void) | null>(null);
+  const relockTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  // (Re)start the inactivity countdown that will re-lock the gate.
+  const armRelock = useCallback(() => {
+    clearTimeout(relockTimer.current);
+    relockTimer.current = setTimeout(() => setUnlocked(false), RELOCK_MS);
+  }, []);
 
   const runPending = useCallback(() => {
     const fn = pendingAction.current;
@@ -45,6 +56,7 @@ export function ParentGateProvider({ children }: { children: ReactNode }) {
   const requirePin = useCallback(
     (action: () => void) => {
       if (unlocked) {
+        armRelock(); // fresh activity extends the unlocked window
         action();
         return;
       }
@@ -55,10 +67,25 @@ export function ParentGateProvider({ children }: { children: ReactNode }) {
       setError('');
       setOpen(true);
     },
-    [unlocked, pinHash],
+    [unlocked, pinHash, armRelock],
   );
 
-  const lock = useCallback(() => setUnlocked(false), []);
+  const lock = useCallback(() => {
+    clearTimeout(relockTimer.current);
+    setUnlocked(false);
+  }, []);
+
+  // Re-lock immediately when the tab is hidden, and clear the timer on unmount.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden) lock();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      clearTimeout(relockTimer.current);
+    };
+  }, [lock]);
 
   const submit = useCallback(async () => {
     if (mode === 'create') {
@@ -67,6 +94,7 @@ export function ParentGateProvider({ children }: { children: ReactNode }) {
       const hash = await hashPin(pin);
       setPinHash(hash);
       setUnlocked(true);
+      armRelock();
       runPending();
       return;
     }
@@ -79,8 +107,9 @@ export function ParentGateProvider({ children }: { children: ReactNode }) {
       return;
     }
     setUnlocked(true);
+    armRelock();
     runPending();
-  }, [mode, pin, confirm, pinHash, setPinHash, runPending]);
+  }, [mode, pin, confirm, pinHash, setPinHash, runPending, armRelock]);
 
   return (
     <GateContext.Provider value={{ requirePin, unlocked, lock }}>

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { AvatarConfig } from '../types';
-import { avatarDataUri } from '../lib/avatar';
+import { avatarDataUri, DEFAULT_AVATAR } from '../lib/avatar';
 
 export function AvatarView({
   config,
@@ -13,7 +13,8 @@ export function AvatarView({
   className?: string;
   ring?: boolean;
 }) {
-  const uri = useMemo(() => avatarDataUri(config), [config]);
+  // Guard against a missing/corrupted config so a bad profile can't white-screen the app.
+  const uri = useMemo(() => avatarDataUri(config ?? DEFAULT_AVATAR), [config]);
   return (
     <img
       src={uri}
