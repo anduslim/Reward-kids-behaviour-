@@ -1,0 +1,219 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useStore } from '../store/useStore';
+import { hashPin, verifyPin } from '../lib/pin';
+import { ModalShell } from './motion';
+
+/** Auto-relock the parent gate after this much inactivity. */
+const RELOCK_MS = 3 * 60 * 1000;
+
+interface GateContextValue {
+  /** Run an action, prompting for the parent PIN first if the gate is locked. */
+  requirePin: (action: () => void) => void;
+  unlocked: boolean;
+  lock: () => void;
+}
+
+const GateContext = createContext<GateContextValue | null>(null);
+
+type Mode = 'enter' | 'create';
+
+export function ParentGateProvider({ children }: { children: ReactNode }) {
+  const pinHash = useStore((s) => s.pinHash);
+  const setPinHash = useStore((s) => s.setPinHash);
+
+  const [unlocked, setUnlocked] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<Mode>('enter');
+  const [pin, setPin] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+  const [shake, setShake] = useState(0);
+  const pendingAction = useRef<(() => void) | null>(null);
+  const relockTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  // (Re)start the inactivity countdown that will re-lock the gate.
+  const armRelock = useCallback(() => {
+    clearTimeout(relockTimer.current);
+    relockTimer.current = setTimeout(() => setUnlocked(false), RELOCK_MS);
+  }, []);
+
+  const runPending = useCallback(() => {
+    const fn = pendingAction.current;
+    pendingAction.current = null;
+    setOpen(false);
+    setPin('');
+    setConfirm('');
+    setError('');
+    fn?.();
+  }, []);
+
+  const requirePin = useCallback(
+    (action: () => void) => {
+      if (unlocked) {
+        armRelock(); // fresh activity extends the unlocked window
+        action();
+        return;
+      }
+      pendingAction.current = action;
+      setMode(pinHash ? 'enter' : 'create');
+      setPin('');
+      setConfirm('');
+      setError('');
+      setOpen(true);
+    },
+    [unlocked, pinHash, armRelock],
+  );
+
+  const lock = useCallback(() => {
+    clearTimeout(relockTimer.current);
+    setUnlocked(false);
+  }, []);
+
+  // Re-lock immediately when the tab is hidden, and clear the timer on unmount.
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden) lock();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      clearTimeout(relockTimer.current);
+    };
+  }, [lock]);
+
+  const submit = useCallback(async () => {
+    if (mode === 'create') {
+      if (pin.length < 4) {
+        setShake((s) => s + 1);
+        return setError('Use at least 4 digits');
+      }
+      if (pin !== confirm) {
+        setShake((s) => s + 1);
+        return setError('PINs do not match');
+      }
+      const hash = await hashPin(pin);
+      setPinHash(hash);
+      setUnlocked(true);
+      armRelock();
+      runPending();
+      return;
+    }
+    // enter mode
+    if (!pinHash) return;
+    const ok = await verifyPin(pin, pinHash);
+    if (!ok) {
+      setError('Wrong PIN, try again');
+      setShake((s) => s + 1);
+      setPin('');
+      return;
+    }
+    setUnlocked(true);
+    armRelock();
+    runPending();
+  }, [mode, pin, confirm, pinHash, setPinHash, runPending, armRelock]);
+
+  return (
+    <GateContext.Provider value={{ requirePin, unlocked, lock }}>
+      {children}
+      <AnimatePresence>
+        {open && (
+          <ModalShell key="parent-gate" zIndex="z-50" className="w-full max-w-sm">
+          <motion.div
+            key={shake}
+            animate={shake > 0 ? { x: [0, -12, 12, -8, 8, -4, 0] } : { x: 0 }}
+            transition={{ duration: 0.45 }}
+            className="card w-full p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.5, rotate: -10 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 16 }}
+              className="mb-1 text-center text-4xl"
+            >
+              🔒
+            </motion.div>
+            <h2 className="text-center text-xl font-extrabold text-slate-800">
+              {mode === 'create' ? 'Create Parent PIN' : 'Parent PIN'}
+            </h2>
+            <p className="mb-4 text-center text-sm text-slate-500">
+              {mode === 'create'
+                ? 'Set a PIN to protect grown-up actions.'
+                : 'Enter your PIN to continue.'}
+            </p>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void submit();
+              }}
+            >
+              <input
+                autoFocus
+                className="input text-center text-2xl tracking-[0.5em]"
+                type="password"
+                inputMode="numeric"
+                value={pin}
+                onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                placeholder="••••"
+                aria-label="PIN"
+              />
+              {mode === 'create' && (
+                <input
+                  className="input mt-3 text-center text-2xl tracking-[0.5em]"
+                  type="password"
+                  inputMode="numeric"
+                  value={confirm}
+                  onChange={(e) =>
+                    setConfirm(e.target.value.replace(/\D/g, '').slice(0, 8))
+                  }
+                  placeholder="Confirm"
+                  aria-label="Confirm PIN"
+                />
+              )}
+              {error && (
+                <motion.p
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-2 text-center text-sm font-bold text-red-500"
+                >
+                  {error}
+                </motion.p>
+              )}
+              <div className="mt-5 flex gap-3">
+                <button
+                  type="button"
+                  className="btn-ghost flex-1"
+                  onClick={() => {
+                    pendingAction.current = null;
+                    setOpen(false);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary flex-1">
+                  {mode === 'create' ? 'Save' : 'Unlock'}
+                </button>
+              </div>
+            </form>
+          </motion.div>
+          </ModalShell>
+        )}
+      </AnimatePresence>
+    </GateContext.Provider>
+  );
+}
+
+export function useParentGate(): GateContextValue {
+  const ctx = useContext(GateContext);
+  if (!ctx) throw new Error('useParentGate must be used within ParentGateProvider');
+  return ctx;
+}
