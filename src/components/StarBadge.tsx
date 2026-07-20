@@ -12,7 +12,7 @@ export function StarBadge({
 }) {
   const toneClass =
     tone === 'gold'
-      ? 'bg-amber-100 text-amber-700 ring-amber-200'
+      ? 'bg-gradient-to-b from-amber-50 to-amber-100 text-amber-700 ring-amber-200'
       : 'bg-slate-100 text-slate-600 ring-slate-200';
   return (
     <span

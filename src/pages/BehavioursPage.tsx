@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '../store/useStore';
 import type { Behaviour } from '../types';
 import { StarBadge } from '../components/StarBadge';
 import { StoredImage } from '../components/StoredImage';
 import { ImageUpload } from '../components/ImageUpload';
 import { EmptyState, PageHeader } from '../components/Layout';
+import { ModalShell, staggerChild, staggerParent } from '../components/motion';
 import { useParentGate } from '../components/ParentGate';
 import { clampStars, starLabel } from '../lib/stars';
 
@@ -36,68 +38,86 @@ export function BehavioursPage() {
       {behaviours.length === 0 ? (
         <EmptyState emoji="✅" title="No behaviours yet" subtitle="Add a good habit to reward." />
       ) : (
-        <div className="space-y-3">
-          {behaviours.map((b) => (
-            <div key={b.id} className="card flex items-center gap-3 p-3">
-              {b.imageId ? (
-                <StoredImage
-                  imageId={b.imageId}
-                  fallback={b.icon}
-                  className="h-12 w-12 shrink-0 rounded-2xl"
-                />
-              ) : (
-                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
-                  {b.icon ?? '⭐'}
-                </span>
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate font-extrabold text-slate-800">{b.name}</span>
-                  {!b.active && (
-                    <span className="rounded-full bg-slate-100 px-2 text-xs font-bold text-slate-400">
-                      hidden
-                    </span>
+        <motion.div
+          variants={staggerParent}
+          initial="hidden"
+          animate="show"
+          className="space-y-3"
+        >
+          <AnimatePresence initial={false}>
+            {behaviours.map((b) => (
+              <motion.div
+                key={b.id}
+                layout
+                variants={staggerChild}
+                exit={{ opacity: 0, x: -24, transition: { duration: 0.18 } }}
+                className="card flex items-center gap-3 p-3"
+              >
+                {b.imageId ? (
+                  <StoredImage
+                    imageId={b.imageId}
+                    fallback={b.icon}
+                    className="h-12 w-12 shrink-0 rounded-2xl"
+                  />
+                ) : (
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-50 to-grape-50 text-2xl ring-1 ring-slate-100">
+                    {b.icon ?? '⭐'}
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-extrabold text-slate-800">{b.name}</span>
+                    {!b.active && (
+                      <span className="rounded-full bg-slate-100 px-2 text-xs font-bold text-slate-400">
+                        hidden
+                      </span>
+                    )}
+                  </div>
+                  {b.description && (
+                    <p className="truncate text-sm text-slate-500">{b.description}</p>
                   )}
                 </div>
-                {b.description && (
-                  <p className="truncate text-sm text-slate-500">{b.description}</p>
-                )}
-              </div>
-              <StarBadge value={b.defaultStars} />
-              <div className="flex flex-col gap-1">
-                <button
-                  className="rounded-lg px-2 py-1 text-xs font-bold text-slate-500 hover:bg-slate-100"
-                  onClick={() => requirePin(() => setEditing(b))}
-                >
-                  ✏️
-                </button>
-                <button
-                  className="rounded-lg px-2 py-1 text-xs font-bold text-red-400 hover:bg-red-50"
-                  onClick={() =>
-                    requirePin(() => {
-                      if (confirm(`Delete "${b.name}"?`)) deleteBehaviour(b.id);
-                    })
-                  }
-                >
-                  🗑️
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+                <StarBadge value={b.defaultStars} />
+                <div className="flex flex-col gap-1">
+                  <button
+                    className="rounded-xl px-2 py-1 text-xs font-bold text-slate-500 transition hover:bg-slate-100 active:scale-90"
+                    onClick={() => requirePin(() => setEditing(b))}
+                    aria-label={`Edit ${b.name}`}
+                  >
+                    ✏️
+                  </button>
+                  <button
+                    className="rounded-xl px-2 py-1 text-xs font-bold text-red-400 transition hover:bg-red-50 active:scale-90"
+                    onClick={() =>
+                      requirePin(() => {
+                        if (confirm(`Delete "${b.name}"?`)) deleteBehaviour(b.id);
+                      })
+                    }
+                    aria-label={`Delete ${b.name}`}
+                  >
+                    🗑️
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </motion.div>
       )}
 
-      {editing && (
-        <BehaviourForm
-          behaviour={editing === 'new' ? null : editing}
-          onClose={() => setEditing(null)}
-          onSubmit={(data) => {
-            if (editing === 'new') addBehaviour(data);
-            else updateBehaviour(editing.id, data);
-            setEditing(null);
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {editing && (
+          <BehaviourForm
+            key="behaviour-form"
+            behaviour={editing === 'new' ? null : editing}
+            onClose={() => setEditing(null)}
+            onSubmit={(data) => {
+              if (editing === 'new') addBehaviour(data);
+              else updateBehaviour(editing.id, data);
+              setEditing(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -119,90 +139,96 @@ function BehaviourForm({
   const [active, setActive] = useState(behaviour?.active ?? true);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-4">
-      <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto rounded-b-none p-6 sm:rounded-3xl">
-        <h2 className="mb-4 text-xl font-extrabold text-slate-800">
-          {behaviour ? 'Edit behaviour' : 'Add behaviour'}
-        </h2>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSubmit({
-              name,
-              description: description.trim() || undefined,
-              icon,
-              imageId,
-              defaultStars: clampStars(defaultStars),
-              active,
-            });
-          }}
-          className="space-y-4"
-        >
-          <div>
-            <label className="label">Name</label>
-            <input
-              autoFocus
-              className="input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Brush teeth"
-              required
-            />
+    <ModalShell
+      onClose={onClose}
+      sheet
+      className="card max-h-[90vh] w-full max-w-md overflow-y-auto rounded-b-none p-6 sm:rounded-3xl"
+    >
+      <h2 className="mb-4 text-xl font-extrabold text-slate-800">
+        {behaviour ? 'Edit behaviour' : 'Add behaviour'}
+      </h2>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit({
+            name,
+            description: description.trim() || undefined,
+            icon,
+            imageId,
+            defaultStars: clampStars(defaultStars),
+            active,
+          });
+        }}
+        className="space-y-4"
+      >
+        <div>
+          <label className="label">Name</label>
+          <input
+            autoFocus
+            className="input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Brush teeth"
+            required
+          />
+        </div>
+        <div>
+          <label className="label">Description</label>
+          <input
+            className="input"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Optional details"
+          />
+        </div>
+        <div>
+          <label className="label">Icon</label>
+          <div className="flex flex-wrap gap-1.5">
+            {EMOJI_CHOICES.map((e) => (
+              <motion.button
+                key={e}
+                type="button"
+                onClick={() => setIcon(e)}
+                whileTap={{ scale: 0.85 }}
+                animate={{ scale: icon === e ? 1.1 : 1 }}
+                className={`h-10 w-10 rounded-xl text-xl ring-2 transition-shadow ${
+                  icon === e
+                    ? 'bg-brand-50 shadow-sm ring-brand-500'
+                    : 'ring-transparent hover:bg-slate-100'
+                }`}
+              >
+                {e}
+              </motion.button>
+            ))}
           </div>
-          <div>
-            <label className="label">Description</label>
-            <input
-              className="input"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional details"
-            />
-          </div>
-          <div>
-            <label className="label">Icon</label>
-            <div className="flex flex-wrap gap-1.5">
-              {EMOJI_CHOICES.map((e) => (
-                <button
-                  key={e}
-                  type="button"
-                  onClick={() => setIcon(e)}
-                  className={`h-10 w-10 rounded-xl text-xl ring-2 ${
-                    icon === e ? 'ring-brand-500' : 'ring-transparent hover:bg-slate-100'
-                  }`}
-                >
-                  {e}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="label">Photo (optional, overrides icon)</label>
-            <ImageUpload imageId={imageId} fallback={icon} onChange={setImageId} />
-          </div>
-          <div>
-            <label className="label">Default stars</label>
-            <StarStepper value={defaultStars} onChange={setDefaultStars} />
-          </div>
-          <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
-            <input
-              type="checkbox"
-              checked={active}
-              onChange={(e) => setActive(e.target.checked)}
-              className="h-5 w-5 rounded"
-            />
-            Show on the Star Board
-          </label>
-          <div className="flex gap-3 pt-2">
-            <button type="button" className="btn-ghost flex-1" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary flex-1">
-              {behaviour ? 'Save' : 'Add'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+        <div>
+          <label className="label">Photo (optional, overrides icon)</label>
+          <ImageUpload imageId={imageId} fallback={icon} onChange={setImageId} />
+        </div>
+        <div>
+          <label className="label">Default stars</label>
+          <StarStepper value={defaultStars} onChange={setDefaultStars} />
+        </div>
+        <label className="flex items-center gap-2 text-sm font-bold text-slate-600">
+          <input
+            type="checkbox"
+            checked={active}
+            onChange={(e) => setActive(e.target.checked)}
+            className="h-5 w-5 rounded accent-brand-500"
+          />
+          Show on the Star Board
+        </label>
+        <div className="flex gap-3 pt-2">
+          <button type="button" className="btn-ghost flex-1" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn-primary flex-1">
+            {behaviour ? 'Save' : 'Add'}
+          </button>
+        </div>
+      </form>
+    </ModalShell>
   );
 }
 
@@ -222,16 +248,24 @@ export function StarStepper({
         type="button"
         className="btn-ghost !h-11 !w-11 !p-0 text-xl"
         onClick={() => onChange(clampStars(value - 0.5, min))}
+        aria-label="Fewer stars"
       >
         −
       </button>
-      <div className="min-w-[4rem] text-center text-2xl font-black text-amber-500">
+      <motion.div
+        key={value}
+        initial={{ scale: 1 }}
+        animate={{ scale: [1, 1.15, 1] }}
+        transition={{ duration: 0.25 }}
+        className="min-w-[4rem] text-center text-2xl font-black text-amber-500"
+      >
         {starLabel(value)}★
-      </div>
+      </motion.div>
       <button
         type="button"
         className="btn-ghost !h-11 !w-11 !p-0 text-xl"
         onClick={() => onChange(clampStars(value + 0.5, min))}
+        aria-label="More stars"
       >
         +
       </button>

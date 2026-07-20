@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import type { AvatarConfig } from '../types';
 import { AVATAR_OPTIONS, avatarDataUri, randomAvatar } from '../lib/avatar';
 import { AvatarView } from './AvatarView';
@@ -27,30 +28,42 @@ export function AvatarBuilder({
   return (
     <div className="space-y-5">
       <div className="flex flex-col items-center gap-3">
-        <AvatarView config={value} size={140} ring />
-        <button
+        <motion.div
+          key={JSON.stringify(value)}
+          initial={{ scale: 0.94 }}
+          animate={{ scale: 1 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 18 }}
+        >
+          <AvatarView config={value} size={140} ring />
+        </motion.div>
+        <motion.button
           type="button"
+          whileTap={{ scale: 0.92, rotate: -4 }}
           className="btn-ghost !py-2 text-sm"
           onClick={() => onChange(randomAvatar())}
         >
-          🎲 Surprise me
-        </button>
+          <span className="inline-block hover:animate-wiggle">🎲</span> Surprise me
+        </motion.button>
       </div>
 
       {CATEGORIES.map((cat) => (
         <div key={cat.key}>
           <div className="label">{cat.label}</div>
-          <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="scrollbar-hide flex gap-2 overflow-x-auto pb-2">
             {AVATAR_OPTIONS[cat.key].map((option) => {
               const selected = value[cat.key] === option;
               if (cat.kind === 'color') {
                 return (
-                  <button
+                  <motion.button
                     key={option}
                     type="button"
                     onClick={() => set(cat.key, option)}
-                    className={`h-10 w-10 shrink-0 rounded-full ring-2 transition ${
-                      selected ? 'ring-brand-500 ring-offset-2' : 'ring-slate-200'
+                    whileTap={{ scale: 0.85 }}
+                    animate={{ scale: selected ? 1.08 : 1 }}
+                    className={`h-10 w-10 shrink-0 rounded-full ring-2 transition-shadow ${
+                      selected
+                        ? 'shadow-md ring-brand-500 ring-offset-2'
+                        : 'ring-slate-200 hover:ring-slate-300'
                     }`}
                     style={{ backgroundColor: `#${option}` }}
                     aria-label={`${cat.label} ${option}`}
@@ -60,17 +73,21 @@ export function AvatarBuilder({
               // style preview: render a mini avatar varying just this attribute
               const preview = avatarDataUri({ ...value, [cat.key]: option });
               return (
-                <button
+                <motion.button
                   key={option}
                   type="button"
                   onClick={() => set(cat.key, option)}
-                  className={`shrink-0 rounded-2xl p-0.5 ring-2 transition ${
-                    selected ? 'ring-brand-500' : 'ring-slate-200'
+                  whileTap={{ scale: 0.88 }}
+                  animate={{ scale: selected ? 1.06 : 1 }}
+                  className={`shrink-0 rounded-2xl p-0.5 ring-2 transition-shadow ${
+                    selected
+                      ? 'shadow-md ring-brand-500'
+                      : 'ring-slate-200 hover:ring-slate-300'
                   }`}
                   aria-label={`${cat.label} ${option}`}
                 >
                   <img src={preview} width={48} height={48} alt="" className="rounded-xl" />
-                </button>
+                </motion.button>
               );
             })}
           </div>

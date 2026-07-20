@@ -22,7 +22,7 @@ export function AvatarPage() {
       <div className="card p-5">
         <AvatarBuilder value={config} onChange={setConfig} />
       </div>
-      <div className="sticky bottom-20 mt-5 flex gap-3 md:bottom-4">
+      <div className="sticky bottom-20 mt-5 flex gap-3 rounded-3xl bg-white/70 p-2 shadow-card backdrop-blur md:bottom-4">
         <button className="btn-ghost flex-1" onClick={() => navigate('/kids')}>
           Cancel
         </button>

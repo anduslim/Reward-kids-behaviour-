@@ -7,8 +7,10 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '../store/useStore';
 import { hashPin, verifyPin } from '../lib/pin';
+import { ModalShell } from './motion';
 
 /** Auto-relock the parent gate after this much inactivity. */
 const RELOCK_MS = 3 * 60 * 1000;
@@ -34,6 +36,7 @@ export function ParentGateProvider({ children }: { children: ReactNode }) {
   const [pin, setPin] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
+  const [shake, setShake] = useState(0);
   const pendingAction = useRef<(() => void) | null>(null);
   const relockTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -89,8 +92,14 @@ export function ParentGateProvider({ children }: { children: ReactNode }) {
 
   const submit = useCallback(async () => {
     if (mode === 'create') {
-      if (pin.length < 4) return setError('Use at least 4 digits');
-      if (pin !== confirm) return setError('PINs do not match');
+      if (pin.length < 4) {
+        setShake((s) => s + 1);
+        return setError('Use at least 4 digits');
+      }
+      if (pin !== confirm) {
+        setShake((s) => s + 1);
+        return setError('PINs do not match');
+      }
       const hash = await hashPin(pin);
       setPinHash(hash);
       setUnlocked(true);
@@ -103,6 +112,7 @@ export function ParentGateProvider({ children }: { children: ReactNode }) {
     const ok = await verifyPin(pin, pinHash);
     if (!ok) {
       setError('Wrong PIN, try again');
+      setShake((s) => s + 1);
       setPin('');
       return;
     }
@@ -114,10 +124,23 @@ export function ParentGateProvider({ children }: { children: ReactNode }) {
   return (
     <GateContext.Provider value={{ requirePin, unlocked, lock }}>
       {children}
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
-          <div className="card w-full max-w-sm p-6">
-            <div className="mb-1 text-center text-4xl">🔒</div>
+      <AnimatePresence>
+        {open && (
+          <ModalShell key="parent-gate" zIndex="z-50" className="w-full max-w-sm">
+          <motion.div
+            key={shake}
+            animate={shake > 0 ? { x: [0, -12, 12, -8, 8, -4, 0] } : { x: 0 }}
+            transition={{ duration: 0.45 }}
+            className="card w-full p-6"
+          >
+            <motion.div
+              initial={{ scale: 0.5, rotate: -10 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 16 }}
+              className="mb-1 text-center text-4xl"
+            >
+              🔒
+            </motion.div>
             <h2 className="text-center text-xl font-extrabold text-slate-800">
               {mode === 'create' ? 'Create Parent PIN' : 'Parent PIN'}
             </h2>
@@ -157,7 +180,13 @@ export function ParentGateProvider({ children }: { children: ReactNode }) {
                 />
               )}
               {error && (
-                <p className="mt-2 text-center text-sm font-bold text-red-500">{error}</p>
+                <motion.p
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mt-2 text-center text-sm font-bold text-red-500"
+                >
+                  {error}
+                </motion.p>
               )}
               <div className="mt-5 flex gap-3">
                 <button
@@ -175,9 +204,10 @@ export function ParentGateProvider({ children }: { children: ReactNode }) {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+          </motion.div>
+          </ModalShell>
+        )}
+      </AnimatePresence>
     </GateContext.Provider>
   );
 }

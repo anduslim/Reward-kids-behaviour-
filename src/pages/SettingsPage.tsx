@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
 import { get, set } from 'idb-keyval';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useStore } from '../store/useStore';
 import { PageHeader } from '../components/Layout';
+import { staggerChild, staggerParent } from '../components/motion';
 import { useParentGate } from '../components/ParentGate';
 import { hashPin } from '../lib/pin';
 import { sweepOrphanImages } from '../lib/images';
@@ -116,12 +118,20 @@ export function SettingsPage() {
     <div>
       <PageHeader title="Settings" subtitle="Parent controls & backups" />
 
-      {status && (
-        <div className="card mb-4 bg-brand-500 px-4 py-3 text-center font-bold text-white">
-          {status}
-        </div>
-      )}
+      <AnimatePresence>
+        {status && (
+          <motion.div
+            initial={{ opacity: 0, y: -12, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.96 }}
+            className="card mb-4 border-none bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-3 text-center font-bold text-white shadow-pop ring-0"
+          >
+            {status}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
+      <motion.div variants={staggerParent} initial="hidden" animate="show">
       <Section title="Parent PIN" emoji="🔒">
         <p className="mb-3 text-sm text-slate-500">
           The PIN protects grown-up actions like awarding stars, redeeming rewards, and
@@ -173,13 +183,17 @@ export function SettingsPage() {
       </Section>
 
       <Section title="Danger zone" emoji="⚠️">
-        <button className="btn !py-2 text-sm bg-red-500 text-white" onClick={resetAll}>
+        <button
+          className="btn !py-2 bg-gradient-to-b from-red-400 to-red-500 text-sm text-white shadow-md shadow-red-500/30 hover:from-red-500 hover:to-red-600"
+          onClick={resetAll}
+        >
           Reset everything
         </button>
       </Section>
+      </motion.div>
 
-      <p className="mt-6 text-center text-xs text-slate-400">
-        Star Kids · data stored locally in your browser
+      <p className="mt-6 text-center text-xs font-semibold text-slate-400">
+        ⭐ Star Kids · data stored locally in your browser
       </p>
     </div>
   );
@@ -195,13 +209,15 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="card mb-4 p-5">
+    <motion.section variants={staggerChild} className="card mb-4 p-5">
       <h2 className="mb-2 flex items-center gap-2 text-lg font-extrabold text-slate-800">
-        <span>{emoji}</span>
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-50 to-grape-50 text-lg ring-1 ring-slate-100">
+          {emoji}
+        </span>
         {title}
       </h2>
       {children}
-    </section>
+    </motion.section>
   );
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useStore, useSelectedKid } from '../store/useStore';
 import type { Reward } from '../types';
 import { AvatarView } from '../components/AvatarView';
@@ -6,6 +7,7 @@ import { StarBadge } from '../components/StarBadge';
 import { StoredImage } from '../components/StoredImage';
 import { ImageUpload } from '../components/ImageUpload';
 import { EmptyState, PageHeader } from '../components/Layout';
+import { ModalShell, staggerChild, staggerParent } from '../components/motion';
 import { StarStepper } from './BehavioursPage';
 import { useParentGate } from '../components/ParentGate';
 import { useCelebration } from '../components/Celebration';
@@ -73,16 +75,16 @@ export function RewardsPage() {
       {kid && (
         <div className="mb-4 flex items-center gap-3">
           {kids.length > 1 && (
-            <div className="flex gap-2 overflow-x-auto">
+            <div className="scrollbar-hide flex gap-2 overflow-x-auto">
               {kids.map((k) => (
-                <button key={k.id} onClick={() => selectKid(k.id)}>
+                <motion.button key={k.id} onClick={() => selectKid(k.id)} whileTap={{ scale: 0.9 }}>
                   <AvatarView
                     config={k.avatar}
                     size={44}
                     ring={k.id === kid.id}
-                    className={k.id === kid.id ? '' : 'opacity-60'}
+                    className={k.id === kid.id ? '' : 'opacity-55'}
                   />
-                </button>
+                </motion.button>
               ))}
             </div>
           )}
@@ -92,11 +94,18 @@ export function RewardsPage() {
         </div>
       )}
 
-      {message && (
-        <div className="card mb-4 bg-grape-500 px-4 py-3 text-center font-bold text-white">
-          {message}
-        </div>
-      )}
+      <AnimatePresence>
+        {message && (
+          <motion.div
+            initial={{ opacity: 0, y: -12, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.96 }}
+            className="card mb-4 border-none bg-gradient-to-r from-grape-500 to-grape-600 px-4 py-3 text-center font-bold text-white shadow-pop-grape ring-0"
+          >
+            {message}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {rewards.length === 0 ? (
         <EmptyState
@@ -105,15 +114,25 @@ export function RewardsPage() {
           subtitle="Add rewards your kids can save up their stars for."
         />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <motion.div
+          variants={staggerParent}
+          initial="hidden"
+          animate="show"
+          className="grid gap-3 sm:grid-cols-2"
+        >
           {rewards.map((r) => {
             const affordable = kid ? kid.starBalance >= r.starCost : false;
             const inStock = r.quantity > 0;
             const canRedeem = affordable && inStock && !!kid;
             const shortBy = kid ? clampStars(r.starCost - kid.starBalance) : r.starCost;
             return (
-              <div key={r.id} className="card overflow-hidden">
-                <div className="relative h-32 w-full bg-slate-100">
+              <motion.div
+                key={r.id}
+                variants={staggerChild}
+                whileHover={{ y: -3 }}
+                className="card overflow-hidden transition-shadow hover:shadow-card-hover"
+              >
+                <div className="relative h-32 w-full bg-gradient-to-br from-grape-50 to-brand-50">
                   {r.imageId ? (
                     <StoredImage
                       imageId={r.imageId}
@@ -121,11 +140,17 @@ export function RewardsPage() {
                       className="h-full w-full"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-6xl">
+                    <div className="flex h-full w-full items-center justify-center text-6xl drop-shadow-sm">
                       {r.icon ?? '🎁'}
                     </div>
                   )}
-                  <span className="absolute right-2 top-2 rounded-full bg-white/90 px-2 py-0.5 text-xs font-bold text-slate-600">
+                  <span
+                    className={`absolute right-2 top-2 rounded-full px-2.5 py-0.5 text-xs font-bold shadow-sm ${
+                      inStock
+                        ? 'bg-white/90 text-slate-600'
+                        : 'bg-slate-700/80 text-white'
+                    }`}
+                  >
                     {inStock ? `${r.quantity} left` : 'Out of stock'}
                   </span>
                 </div>
@@ -140,7 +165,8 @@ export function RewardsPage() {
                     <StarBadge value={r.starCost} />
                   </div>
                   <div className="mt-3 flex items-center gap-2">
-                    <button
+                    <motion.button
+                      whileTap={canRedeem ? { scale: 0.95 } : undefined}
                       className="btn-grape flex-1 !py-2 text-sm"
                       disabled={!canRedeem}
                       onClick={() => handleRedeem(r)}
@@ -148,44 +174,49 @@ export function RewardsPage() {
                       {!inStock
                         ? 'Out of stock'
                         : affordable
-                          ? 'Redeem'
+                          ? '🎉 Redeem'
                           : `Need ${starLabel(shortBy)}★ more`}
-                    </button>
+                    </motion.button>
                     <button
-                      className="rounded-lg px-2 py-1 text-slate-400 hover:bg-slate-100"
+                      className="rounded-xl px-2 py-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 active:scale-90"
                       onClick={() => requirePin(() => setEditing(r))}
+                      aria-label={`Edit ${r.name}`}
                     >
                       ✏️
                     </button>
                     <button
-                      className="rounded-lg px-2 py-1 text-red-400 hover:bg-red-50"
+                      className="rounded-xl px-2 py-1.5 text-red-400 transition hover:bg-red-50 active:scale-90"
                       onClick={() =>
                         requirePin(() => {
                           if (confirm(`Delete "${r.name}"?`)) deleteReward(r.id);
                         })
                       }
+                      aria-label={`Delete ${r.name}`}
                     >
                       🗑️
                     </button>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
-        </div>
+        </motion.div>
       )}
 
-      {editing && (
-        <RewardForm
-          reward={editing === 'new' ? null : editing}
-          onClose={() => setEditing(null)}
-          onSubmit={(data) => {
-            if (editing === 'new') addReward(data);
-            else updateReward(editing.id, data);
-            setEditing(null);
-          }}
-        />
-      )}
+      <AnimatePresence>
+        {editing && (
+          <RewardForm
+            key="reward-form"
+            reward={editing === 'new' ? null : editing}
+            onClose={() => setEditing(null)}
+            onSubmit={(data) => {
+              if (editing === 'new') addReward(data);
+              else updateReward(editing.id, data);
+              setEditing(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -207,90 +238,96 @@ function RewardForm({
   const [quantity, setQuantity] = useState(reward?.quantity ?? 1);
 
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-slate-900/50 sm:items-center sm:p-4">
-      <div className="card max-h-[90vh] w-full max-w-md overflow-y-auto rounded-b-none p-6 sm:rounded-3xl">
-        <h2 className="mb-4 text-xl font-extrabold text-slate-800">
-          {reward ? 'Edit reward' : 'Add reward'}
-        </h2>
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSubmit({
-              name,
-              description: description.trim() || undefined,
-              icon,
-              imageId,
-              starCost: clampStars(starCost),
-              quantity: Math.max(0, Math.floor(quantity)),
-            });
-          }}
-          className="space-y-4"
-        >
-          <div>
-            <label className="label">Name</label>
-            <input
-              autoFocus
-              className="input"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Ice cream treat"
-              required
-            />
+    <ModalShell
+      onClose={onClose}
+      sheet
+      className="card max-h-[90vh] w-full max-w-md overflow-y-auto rounded-b-none p-6 sm:rounded-3xl"
+    >
+      <h2 className="mb-4 text-xl font-extrabold text-slate-800">
+        {reward ? 'Edit reward' : 'Add reward'}
+      </h2>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          onSubmit({
+            name,
+            description: description.trim() || undefined,
+            icon,
+            imageId,
+            starCost: clampStars(starCost),
+            quantity: Math.max(0, Math.floor(quantity)),
+          });
+        }}
+        className="space-y-4"
+      >
+        <div>
+          <label className="label">Name</label>
+          <input
+            autoFocus
+            className="input"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Ice cream treat"
+            required
+          />
+        </div>
+        <div>
+          <label className="label">Description</label>
+          <input
+            className="input"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Optional details"
+          />
+        </div>
+        <div>
+          <label className="label">Icon</label>
+          <div className="flex flex-wrap gap-1.5">
+            {REWARD_EMOJIS.map((e) => (
+              <motion.button
+                key={e}
+                type="button"
+                onClick={() => setIcon(e)}
+                whileTap={{ scale: 0.85 }}
+                animate={{ scale: icon === e ? 1.1 : 1 }}
+                className={`h-10 w-10 rounded-xl text-xl ring-2 transition-shadow ${
+                  icon === e
+                    ? 'bg-grape-50 shadow-sm ring-grape-500'
+                    : 'ring-transparent hover:bg-slate-100'
+                }`}
+              >
+                {e}
+              </motion.button>
+            ))}
           </div>
-          <div>
-            <label className="label">Description</label>
-            <input
-              className="input"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Optional details"
-            />
-          </div>
-          <div>
-            <label className="label">Icon</label>
-            <div className="flex flex-wrap gap-1.5">
-              {REWARD_EMOJIS.map((e) => (
-                <button
-                  key={e}
-                  type="button"
-                  onClick={() => setIcon(e)}
-                  className={`h-10 w-10 rounded-xl text-xl ring-2 ${
-                    icon === e ? 'ring-grape-500' : 'ring-transparent hover:bg-slate-100'
-                  }`}
-                >
-                  {e}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="label">Photo (optional, overrides icon)</label>
-            <ImageUpload imageId={imageId} fallback={icon} onChange={setImageId} />
-          </div>
-          <div>
-            <label className="label">Star cost</label>
-            <StarStepper value={starCost} onChange={setStarCost} />
-          </div>
-          <div>
-            <label className="label">Quantity available</label>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              value={quantity}
-              onChange={(e) => setQuantity(Number(e.target.value))}
-            />
-          </div>
-          <div className="flex gap-3 pt-2">
-            <button type="button" className="btn-ghost flex-1" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-grape flex-1">
-              {reward ? 'Save' : 'Add'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </div>
+        <div>
+          <label className="label">Photo (optional, overrides icon)</label>
+          <ImageUpload imageId={imageId} fallback={icon} onChange={setImageId} />
+        </div>
+        <div>
+          <label className="label">Star cost</label>
+          <StarStepper value={starCost} onChange={setStarCost} />
+        </div>
+        <div>
+          <label className="label">Quantity available</label>
+          <input
+            className="input"
+            type="number"
+            min={0}
+            value={quantity}
+            onChange={(e) => setQuantity(Number(e.target.value))}
+          />
+        </div>
+        <div className="flex gap-3 pt-2">
+          <button type="button" className="btn-ghost flex-1" onClick={onClose}>
+            Cancel
+          </button>
+          <button type="submit" className="btn-grape flex-1">
+            {reward ? 'Save' : 'Add'}
+          </button>
+        </div>
+      </form>
+    </ModalShell>
   );
 }
