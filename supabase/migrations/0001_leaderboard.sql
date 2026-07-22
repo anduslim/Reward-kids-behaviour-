@@ -110,6 +110,7 @@ create or replace function public.gen_invite_code()
 returns text
 language sql
 volatile
+set search_path = public
 as $$
   select string_agg(
     substr('ABCDEFGHJKLMNPQRSTUVWXYZ23456789',
@@ -191,7 +192,18 @@ begin
 end;
 $$;
 
-grant execute on function public.create_group(text)  to authenticated;
-grant execute on function public.join_group(text)    to authenticated;
-grant execute on function public.leave_group(uuid)   to authenticated;
+-- Only signed-in (incl. anonymous-auth) users may call the RPCs; the anon role
+-- and the public grant are revoked. gen_invite_code is internal-only.
+revoke execute on function public.gen_invite_code()      from public, anon, authenticated;
+revoke execute on function public.is_group_member(uuid)  from public, anon;
+revoke execute on function public.create_group(text)     from public, anon;
+revoke execute on function public.join_group(text)       from public, anon;
+revoke execute on function public.leave_group(uuid)      from public, anon;
+
 grant execute on function public.is_group_member(uuid) to authenticated;
+grant execute on function public.create_group(text)    to authenticated;
+grant execute on function public.join_group(text)      to authenticated;
+grant execute on function public.leave_group(uuid)     to authenticated;
+
+-- Live updates for the leaderboard.
+alter publication supabase_realtime add table public.leaderboard_entries;
