@@ -8,7 +8,7 @@ export function AvatarView({
   className = '',
   ring = false,
 }: {
-  config: AvatarConfig;
+  config?: AvatarConfig | null;
   size?: number;
   className?: string;
   ring?: boolean;
