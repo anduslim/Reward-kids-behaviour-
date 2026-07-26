@@ -99,14 +99,14 @@ export function SettingsPage() {
         const text = await file.text();
         const parsed = JSON.parse(text);
         if (parsed.app !== 'star-kids' || !isValidState(parsed.state)) {
-          throw new Error('bad file');
+          throw new Error("This doesn't look like a Star Kids backup.");
         }
         // Restore all images to IndexedDB first, and wait for every write to land
         // before swapping state so components never read a missing blob.
         if (parsed.images && typeof parsed.images === 'object') {
           await Promise.all(
             Object.entries<string>(parsed.images).map(([id, dataUrl]) =>
-              dataUrlToBlob(dataUrl).then((blob) => set(id, blob)),
+              set(id, dataUrlToBlob(dataUrl)),
             ),
           );
         }
@@ -126,8 +126,9 @@ export function SettingsPage() {
         });
         sweepNow(); // drop blobs from the pre-import state that are now unreferenced
         flash('Backup restored. ✓');
-      } catch {
-        flash('Could not read that file.');
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : '';
+        flash(detail ? `Import failed: ${detail}` : 'Could not read that file.');
       } finally {
         if (fileRef.current) fileRef.current.value = ''; // allow re-importing the same file
       }
@@ -297,9 +298,22 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-  const res = await fetch(dataUrl);
-  return res.blob();
+// Decode a data: URL to a Blob without fetch(). iOS Safari Private Browsing
+// blocks fetch() of data: URLs, which used to break importing any backup that
+// contained images. Manual base64 decoding works in every browser/mode.
+function dataUrlToBlob(dataUrl: string): Blob {
+  const comma = dataUrl.indexOf(',');
+  const header = dataUrl.slice(0, comma);
+  const body = dataUrl.slice(comma + 1);
+  const mime = header.match(/data:([^;]+)/)?.[1] ?? 'application/octet-stream';
+  const isBase64 = /;base64/i.test(header);
+  if (!isBase64) {
+    return new Blob([decodeURIComponent(body)], { type: mime });
+  }
+  const binary = atob(body);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type: mime });
 }
 
 /** Minimal shape check so a malformed backup can't persist a state that crashes the app. */
